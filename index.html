@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Procesadores y criterios de elección</title>
+<style>
+:root { font-family: system-ui, sans-serif; color: #17253a; background: #f1f5f9; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+header { background: #14263f; color: white; padding: 2rem 1rem; }
+.wrap, main { max-width: 52rem; margin: auto; }
+h1 { margin: .4rem 0; font-size: clamp(1.8rem, 5vw, 3rem); line-height: 1.1; }
+header p { margin: 0; color: #d6e6fa; }
+main { padding: 1rem; }
+.status { position: sticky; top: 0; z-index: 1; background: #f1f5f9; padding: .7rem 0; font-weight: 650; }
+progress { display: block; width: 100%; height: .65rem; margin-top: .35rem; accent-color: #176054; }
+fieldset { min-width: 0; background: white; border: 1px solid #bac9d9; border-radius: .7rem; margin: 1rem 0; padding: .8rem; }
+legend { font-weight: 700; padding: .15rem .4rem; }
+label { display: flex; align-items: baseline; gap: .55rem; padding: .65rem; margin: .25rem 0; border: 1px solid #cbd5e1; border-radius: .45rem; cursor: pointer; }
+label:has(input:checked) { background: #e5eefb; border-color: #3b629a; }
+label.correct { background: #e2f5eb; border-color: #26764e; }
+label.wrong { background: #ffeded; border-color: #a53535; }
+input { margin: 0; accent-color: #224d83; }
+:focus-visible { outline: 3px solid #9b4900; outline-offset: 3px; }
+.feedback { margin: .6rem 0 0; font-weight: 650; }
+.actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+button { font: inherit; font-weight: 650; padding: .65rem 1rem; border-radius: .45rem; border: 1px solid #234c7c; cursor: pointer; background: #234c7c; color: white; }
+button[type=button] { background: white; color: #234c7c; }
+button:disabled { opacity: .55; cursor: default; }
+#result { scroll-margin-top: 5rem; }
+#result:not(:empty) { padding: 1rem; margin: 1rem 0; border: 2px solid #176054; background: white; border-radius: .6rem; }
+</style>
+</head>
+<body>
+<header><div class="wrap">
+<p>Fundamentos de Hardware · ASIR1</p>
+<h1>Procesadores y criterios de elección</h1>
+<p>Test de 30 preguntas</p>
+</div></header>
+<main>
+<p>Marca una opción por pregunta y pulsa <strong>Corregir test</strong>. Las respuestas en blanco cuentan como cero y los errores no restan.</p>
+<div class="status">
+<div id="progress-text" role="status"></div>
+<progress id="progress" max="30" value="0" aria-label="Preguntas respondidas"></progress>
+</div>
+<div id="result" tabindex="-1" aria-live="polite"></div>
+<form id="quiz">
+<div id="questions"></div>
+<div class="actions">
+<button id="grade" type="submit">Corregir test</button>
+<button id="retry" type="button">Reiniciar test</button>
+</div>
+</form>
+<noscript>Activa JavaScript en el navegador para responder y corregir el test.</noscript>
+</main>
+<script>
+const bank = [
+  {
+    "prompt": "¿Cuál es la función principal del procesador?",
+    "options": [
+      "Conservar permanentemente los archivos del usuario.",
+      "Ejecutar las instrucciones de los programas y procesar datos.",
+      "Proporcionar alimentación eléctrica a los componentes.",
+      "Almacenar las copias de seguridad del sistema."
+    ],
+    "correct": 1
+  },
+  {
+    "prompt": "¿Qué debes comprobar para confirmar que una CPU es compatible con una placa base?",
+    "options": [
+      "Únicamente que ambos componentes sean del mismo fabricante.",
+      "Solo que la frecuencia de la CPU coincida con la de la RAM.",
+      "Exclusivamente que el procesador encaje en el socket.",
+      "El socket, la lista de CPU admitidas y la versión de BIOS/UEFI necesaria."
+    ],
+    "correct": 3
+  },
+  {
+    "prompt": "¿Qué define la arquitectura del conjunto de instrucciones?",
+    "options": [
+      "Las instrucciones que puede ejecutar el procesador.",
+      "La capacidad máxima del disco del sistema.",
+      "El número de ventiladores que admite la caja.",
+      "La temperatura que debe mantener el aula."
+    ],
+    "correct": 0
+  },
+  {
+    "prompt": "¿Qué es la microarquitectura?",
+    "options": [
+      "El formato físico de la placa base.",
+      "La versión del sistema operativo instalado.",
+      "El diseño interno que implementa el conjunto de instrucciones.",
+      "La disposición de los conectores externos de la caja."
+    ],
+    "correct": 2
+  },
+  {
+    "prompt": "Dos procesadores ejecutan los mismos programas, pero ofrecen distinto rendimiento. ¿Qué explicación es correcta?",
+    "options": [
+      "La compatibilidad con los mismos programas exige idéntico rendimiento.",
+      "El rendimiento depende exclusivamente del socket utilizado.",
+      "Sus diseños internos y otras características pueden ser diferentes.",
+      "El procesador más lento necesariamente tiene una avería."
+    ],
+    "correct": 2
+  },
+  {
+    "prompt": "¿Qué es un núcleo de CPU?",
+    "options": [
+      "Una unidad física de procesamiento dentro del procesador.",
+      "Una partición del disco reservada para programas.",
+      "Un conector que comunica la placa con la fuente.",
+      "Una zona de la RAM dedicada al sistema operativo."
+    ],
+    "correct": 0
+  },
+  {
+    "prompt": "¿Qué es un hilo de software?",
+    "options": [
+      "Un cable que comunica la CPU con la memoria.",
+      "Una unidad física independiente dentro de la CPU.",
+      "Un nivel de memoria caché del procesador.",
+      "Una secuencia de ejecución de un programa."
+    ],
+    "correct": 3
+  },
+  {
+    "prompt": "¿Qué permite la tecnología SMT?",
+    "options": [
+      "Convertir cada núcleo físico en dos núcleos físicos independientes.",
+      "Atender varios hilos en un núcleo compartiendo recursos internos.",
+      "Duplicar la capacidad de la memoria RAM instalada.",
+      "Mantener siempre la frecuencia turbo máxima."
+    ],
+    "correct": 1
+  },
+  {
+    "prompt": "Una CPU dispone de 6 núcleos y admite 12 hilos. ¿Qué interpretación es correcta?",
+    "options": [
+      "Tiene 6 núcleos físicos y puede atender 12 hilos mediante procesadores lógicos.",
+      "Contiene 12 núcleos físicos, aunque solo utiliza 6.",
+      "Tiene 18 unidades físicas de procesamiento independientes.",
+      "Ejecuta cualquier programa al doble de velocidad que una CPU de 6 hilos."
+    ],
+    "correct": 0
+  },
+  {
+    "prompt": "¿Cuándo puede aprovechar un programa varios núcleos para terminar antes una tarea?",
+    "options": [
+      "Cuando ocupa poco espacio en el disco.",
+      "Cuando utiliza exclusivamente un hilo de ejecución.",
+      "Cuando todos sus cálculos deben realizarse de forma estrictamente secuencial.",
+      "Cuando puede repartir el trabajo entre varios recursos de ejecución."
+    ],
+    "correct": 3
+  },
+  {
+    "prompt": "¿Qué indica una frecuencia de 3 GHz?",
+    "options": [
+      "Tres mil millones de instrucciones completadas por segundo en cualquier programa.",
+      "Tres mil millones de ciclos de reloj por segundo.",
+      "Tres millones de accesos a la RAM por segundo.",
+      "Tres mil millones de bytes almacenados en la caché."
+    ],
+    "correct": 1
+  },
+  {
+    "prompt": "¿Qué expresa el IPC?",
+    "options": [
+      "El número de núcleos físicos disponibles.",
+      "La potencia eléctrica máxima del procesador.",
+      "El promedio de instrucciones completadas por ciclo de reloj.",
+      "La cantidad de memoria instalada en la placa base."
+    ],
+    "correct": 2
+  },
+  {
+    "prompt": "¿Por qué una CPU de 3,5 GHz puede superar a otra de 4 GHz?",
+    "options": [
+      "Porque también influyen el trabajo realizado por ciclo y otras características.",
+      "Porque una frecuencia menor garantiza siempre un rendimiento mayor.",
+      "Porque ambas ejecutan necesariamente las mismas instrucciones por segundo.",
+      "Porque el rendimiento depende únicamente de la capacidad del disco."
+    ],
+    "correct": 0
+  },
+  {
+    "prompt": "¿Qué es la frecuencia turbo?",
+    "options": [
+      "Una frecuencia fija que se mantiene desde el encendido hasta el apagado.",
+      "Un aumento automático de frecuencia condicionado por carga, potencia y temperatura.",
+      "La frecuencia de funcionamiento de la memoria RAM.",
+      "Una velocidad garantizada simultáneamente para todos los núcleos."
+    ],
+    "correct": 1
+  },
+  {
+    "prompt": "Una ficha anuncia una frecuencia turbo máxima. ¿Cómo debes interpretar ese dato?",
+    "options": [
+      "Es la frecuencia mínima de funcionamiento del procesador.",
+      "Todos los núcleos la mantienen durante cualquier tarea.",
+      "Permite conocer por sí sola el rendimiento de todas las aplicaciones.",
+      "Su alcance depende de las condiciones y no implica mantenerla en todos los núcleos."
+    ],
+    "correct": 3
+  },
+  {
+    "prompt": "¿Para qué sirve la memoria caché?",
+    "options": [
+      "Para conservar los documentos cuando se apaga el equipo.",
+      "Para sustituir completamente a la memoria RAM.",
+      "Para conservar copias de datos e instrucciones y reducir accesos a la RAM.",
+      "Para almacenar exclusivamente la configuración de BIOS/UEFI."
+    ],
+    "correct": 2
+  },
+  {
+    "prompt": "¿Qué característica corresponde habitualmente a la caché L1?",
+    "options": [
+      "Tiene más capacidad y mayor tiempo de acceso que L3.",
+      "Tiene poca capacidad y un acceso muy rápido.",
+      "Se encuentra en el disco de almacenamiento.",
+      "Sustituye a los registros del procesador."
+    ],
+    "correct": 1
+  },
+  {
+    "prompt": "¿Qué afirmación describe habitualmente la caché L3?",
+    "options": [
+      "Es mayor que L1 y L2 y frecuentemente se comparte entre varios núcleos.",
+      "Es siempre la caché más pequeña y rápida del procesador.",
+      "Es una parte de la RAM reservada por el sistema operativo.",
+      "Almacena permanentemente los programas instalados."
+    ],
+    "correct": 0
+  },
+  {
+    "prompt": "¿Qué es la latencia de una memoria?",
+    "options": [
+      "La cantidad de datos que puede conservar.",
+      "El número de módulos que admite la placa.",
+      "El tiempo necesario para acceder a los datos.",
+      "La potencia térmica que puede disipar."
+    ],
+    "correct": 2
+  },
+  {
+    "prompt": "Dos CPU tienen distinta capacidad de caché. ¿Qué conclusión es rigurosa?",
+    "options": [
+      "La CPU con más caché será siempre más rápida.",
+      "La caché no influye en ninguna aplicación.",
+      "Duplicar la caché reduce siempre a la mitad el tiempo de ejecución.",
+      "La ventaja depende de la aplicación, de la latencia y de otros factores."
+    ],
+    "correct": 3
+  },
+  {
+    "prompt": "¿Cómo debe interpretarse el TDP?",
+    "options": [
+      "Como una referencia de diseño térmico definida por el fabricante.",
+      "Como el consumo eléctrico máximo exacto de la CPU en cualquier situación.",
+      "Como la temperatura máxima del procesador expresada en grados.",
+      "Como la potencia total que consume siempre el ordenador."
+    ],
+    "correct": 0
+  },
+  {
+    "prompt": "¿Qué debe tenerse en cuenta al seleccionar la refrigeración?",
+    "options": [
+      "Solo el número de conectores USB de la placa base.",
+      "Únicamente la capacidad del almacenamiento.",
+      "El procesador, la caja y la carga de trabajo sostenida.",
+      "Exclusivamente la frecuencia de la memoria RAM."
+    ],
+    "correct": 2
+  },
+  {
+    "prompt": "Durante una tarea prolongada, la CPU alcanza su límite térmico y reduce su frecuencia. ¿Qué sucede?",
+    "options": [
+      "Se activa una ampliación automática de caché.",
+      "Se produce thermal throttling para controlar la temperatura.",
+      "Se incrementa el IPC para mantener siempre el mismo rendimiento.",
+      "Se deshabilita permanentemente la mitad de la RAM."
+    ],
+    "correct": 1
+  },
+  {
+    "prompt": "¿Cómo debes averiguar la temperatura máxima admitida por una CPU?",
+    "options": [
+      "Aplicando el mismo valor a todos los modelos.",
+      "Calculándola únicamente a partir de sus GHz.",
+      "Tomando como referencia la temperatura del disco.",
+      "Consultando la especificación del modelo."
+    ],
+    "correct": 3
+  },
+  {
+    "prompt": "¿Qué significa «carga de trabajo» al elegir un procesador?",
+    "options": [
+      "El peso total de los componentes instalados.",
+      "La potencia nominal de la fuente de alimentación.",
+      "El conjunto de tareas que realizará el equipo.",
+      "El espacio que ocupa el sistema operativo."
+    ],
+    "correct": 2
+  },
+  {
+    "prompt": "Para un equipo destinado a documentos y navegación, ¿qué criterio es adecuado?",
+    "options": [
+      "Elegir siempre el procesador con mayor número de núcleos disponible.",
+      "Buscar una respuesta ágil y ajustar la elección a las necesidades y al presupuesto.",
+      "Dar prioridad absoluta a la frecuencia turbo sin revisar otros datos.",
+      "Elegir la CPU con mayor TDP, independientemente del uso."
+    ],
+    "correct": 1
+  },
+  {
+    "prompt": "Un programa de renderizado por CPU reparte eficazmente sus cálculos. ¿Qué característica puede favorecerlo?",
+    "options": [
+      "Una menor cantidad de RAM disponible.",
+      "Una reducción del número de núcleos utilizables.",
+      "Una refrigeración insuficiente durante cargas prolongadas.",
+      "Un mayor número de núcleos adecuados para ejecutar el trabajo."
+    ],
+    "correct": 3
+  },
+  {
+    "prompt": "¿Qué debes valorar para ejecutar varias máquinas virtuales simultáneamente?",
+    "options": [
+      "Los núcleos, el soporte de virtualización y la capacidad de RAM.",
+      "Solo la frecuencia turbo máxima anunciada.",
+      "Únicamente el tamaño de la caché L1.",
+      "La capacidad del disco, sin considerar CPU ni memoria."
+    ],
+    "correct": 0
+  },
+  {
+    "prompt": "¿Qué pruebas permiten comparar mejor dos procesadores para una tarea concreta?",
+    "options": [
+      "Pruebas de aplicaciones diferentes con configuraciones desconocidas.",
+      "Pruebas elegidas únicamente por mostrar la mayor frecuencia.",
+      "Pruebas basadas exclusivamente en el precio de cada procesador.",
+      "Pruebas de la aplicación prevista realizadas en condiciones comparables."
+    ],
+    "correct": 3
+  },
+  {
+    "prompt": "¿Qué justificación de compra es la más completa?",
+    "options": [
+      "«Lo elijo porque tiene la frecuencia anunciada más alta».",
+      "«Cumple la carga prevista, es compatible y el coste del conjunto se ajusta al presupuesto».",
+      "«Lo elijo porque tiene más caché, aunque desconozco su compatibilidad».",
+      "«Es el más caro, por lo que será el mejor para cualquier tarea»."
+    ],
+    "correct": 1
+  }
+];
+
+const form = document.querySelector('#quiz');
+const questions = document.querySelector('#questions');
+const progress = document.querySelector('#progress');
+const progressText = document.querySelector('#progress-text');
+const result = document.querySelector('#result');
+const grade = document.querySelector('#grade');
+const retry = document.querySelector('#retry');
+let attempt = [];
+
+function shuffle(items) {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index--) {
+    const other = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[other]] = [shuffled[other], shuffled[index]];
+  }
+  return shuffled;
+}
+
+function updateProgress() {
+  const count = form.querySelectorAll('input:checked').length;
+  progress.value = count;
+  progressText.textContent = count + ' de ' + bank.length + ' respondidas';
+}
+
+function start() {
+  questions.replaceChildren();
+  result.textContent = '';
+  grade.disabled = false;
+  const positions = shuffle(Array.from({ length: bank.length }, (_, index) => index % 4));
+  attempt = shuffle(bank).map(({ prompt, options, correct }, index) => {
+    const field = document.createElement('fieldset');
+    const legend = document.createElement('legend');
+    legend.textContent = (index + 1) + '. ' + prompt;
+    field.append(legend);
+
+    const ordered = shuffle(options.filter((_, position) => position !== correct));
+    ordered.splice(positions[index], 0, options[correct]);
+    const labels = ordered.map((option, position) => {
+      const label = document.createElement('label');
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = 'question-' + index;
+      input.value = position;
+      const caption = document.createElement('span');
+      caption.textContent = 'ABCD'[position] + ') ' + option;
+      label.append(input, caption);
+      field.append(label);
+      return label;
+    });
+
+    const feedback = document.createElement('p');
+    feedback.className = 'feedback';
+    feedback.hidden = true;
+    field.append(feedback);
+    questions.append(field);
+    return { field, labels, feedback, correct: positions[index] };
+  });
+  updateProgress();
+}
+
+form.addEventListener('change', updateProgress);
+form.addEventListener('submit', event => {
+  event.preventDefault();
+  if (grade.disabled) return;
+  const blank = bank.length - progress.value;
+  if (blank && !window.confirm('Quedan ' + blank + ' preguntas sin responder. ¿Quieres corregir el test?')) return;
+
+  let hits = 0;
+  for (const { field, labels, feedback, correct } of attempt) {
+    const selected = field.querySelector('input:checked');
+    const right = selected?.value === String(correct);
+    if (right) hits++;
+    const correctLabel = labels[correct];
+    correctLabel.classList.add('correct');
+    if (selected && !right) selected.closest('label').classList.add('wrong');
+    feedback.textContent = right ? 'Correcta.' :
+      (selected ? 'Incorrecta.' : 'Sin responder.') + ' Respuesta correcta: ' +
+      correctLabel.querySelector('span').textContent;
+    feedback.hidden = false;
+    field.disabled = true;
+  }
+
+  const score = (hits * 10 / bank.length).toLocaleString('es-ES', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2
+  });
+  result.textContent = 'Nota: ' + score + '/10 · Aciertos: ' + hits + ' de ' + bank.length +
+    ' · Errores: ' + (bank.length - blank - hits) + ' · En blanco: ' + blank;
+  grade.disabled = true;
+  result.focus();
+  result.scrollIntoView({ block: 'start' });
+});
+
+retry.addEventListener('click', () => {
+  if (!grade.disabled && progress.value && !window.confirm('¿Quieres borrar tus respuestas y empezar otro intento?')) return;
+  start();
+  questions.querySelector('input').focus();
+  window.scrollTo(0, 0);
+});
+
+start();
+</script>
+</body>
+</html>
